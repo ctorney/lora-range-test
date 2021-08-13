@@ -69,7 +69,7 @@ while True:
     #continue
     # Optionally change the receive timeout from its default of 0.5 seconds:
     LED.value = False
-    packet = rfm9x.receive(timeout=20.0)
+    packet = rfm9x.receive(timeout=0.5)
     # If no packet was received during the timeout then None is returned.
     if packet is not None:
         # Received a packet!

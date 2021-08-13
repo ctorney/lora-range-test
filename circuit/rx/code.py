@@ -76,7 +76,7 @@ while True:
         # print it.
         rssi = rfm9x.last_rssi
         print("Received signal strength: {0} dB".format(rssi))
-        rfm9x.send(bytes("And hello back to you\n", "utf-8"),1)
+        rfm9x.send(bytes("And hello back to you\n", "utf-8"))
     else:
         print('no message')
 

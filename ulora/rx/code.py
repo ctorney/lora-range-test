@@ -58,7 +58,7 @@ rfm9x = ulora.LoRa()#modem_config=ulora2.ModemConfig.Bw31_25Cr48Sf512) #RFM95_SP
 
 while True:
     print("waiting for message...")
-    packet = rfm9x.receive(timeout=20.0)
+    packet = rfm9x.receive(timeout=2.0)
     # If no packet was received during the timeout then None is returned.
     if packet is not None:
         # Received a packet!
