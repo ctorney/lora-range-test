@@ -65,25 +65,21 @@ class ModemConfig():
 
 class LoRa(object):
     def __init__(self, spi, CS, this_address=0, freq=868.0, tx_power=14,
-                 modem_config=ModemConfig.Bw125Cr45Sf128, receive_all=False, acks=False, crypto=None):
+                 modem_config=ModemConfig.Bw125Cr45Sf128, receive_all=False, acks=False ):
         """
-        Lora(channel, interrupt, this_address, cs_pin, reset_pin=None, freq=868.0, tx_power=14,
-                 modem_config=ModemConfig.Bw125Cr45Sf128, receive_all=False, acks=False, crypto=None)
-        channel: SPI channel, check SPIConfig for preconfigured names
-        interrupt: GPIO interrupt pin
+        Lora(spi, CS, this_address, freq=868.0, tx_power=14,
+                 modem_config=ModemConfig.Bw125Cr45Sf128, receive_all=False, acks=False)
+        spi: The SPI bus connected to the radio.
+        CS: The CS pin DigitalInOut connected to the radio.
         this_address: set address for this device [0-254]
-        cs_pin: chip select pin from microcontroller 
-        reset_pin: the GPIO used to reset the RFM9x if connected
         freq: frequency in MHz
         tx_power: transmit power in dBm
         modem_config: Check ModemConfig. Default is compatible with the Radiohead library
         receive_all: if True, don't filter packets on address
         acks: if True, request acknowledgments
-        crypto: if desired, an instance of ucrypto AES (https://docs.pycom.io/firmwareapi/micropython/ucrypto/) - not tested
         """
         
         self._mode = None
-        self._cad = None
         self._freq = freq
         self._tx_power = tx_power
         self._modem_config = modem_config
@@ -96,37 +92,12 @@ class LoRa(object):
         self._last_header_id = 0
 
         self._last_payload = None
-        self.crypto = crypto
 
-        self.cad_timeout = 0
         self.send_retries = 2
         self.wait_packet_sent_timeout = 20.0
         self.retry_timeout = 0.2
         
-        # Setup the module
-#        gpio_interrupt = Pin(self._interrupt, Pin.IN, Pin.PULL_DOWN)
-        #gpio_interrupt = Pin(self._interrupt, Pin.IN)
-        #gpio_interrupt.irq(trigger=Pin.IRQ_RISING, handler=self._handle_interrupt)
-        
-        # reset the board
-        #if reset_pin:
-        #    gpio_reset = Pin(reset_pin, Pin.OUT)
-        #    gpio_reset.value(0)
-        #    time.sleep(0.01)
-        #    gpio_reset.value(1)
-        #    time.sleep(0.01)
-
-        # baud rate to 5MHz
-        #self.spi = busio.SPI(board.SCK, MOSI=board.MOSI, MISO=board.MISO)
-        #self.spi = SPI(self._spi_channel[0], 5000000,
-        #               sck=Pin(self._spi_channel[1]), mosi=Pin(self._spi_channel[2]), miso=Pin(self._spi_channel[3]))
-
-        #self.cs = digitalio.DigitalInOut(board.RFM9X_CS)
-
         self._device = spidev.SPIDevice(spi, CS, baudrate=5000000, polarity=0, phase=0)
-        # cs gpio pin
-        #self.cs = Pin(self._cs_pin, Pin.OUT)
-        #self.cs.value(1)
         
         # set mode
         self._spi_write(REG_01_OP_MODE, MODE_SLEEP | LONG_RANGE_MODE)
@@ -141,7 +112,7 @@ class LoRa(object):
         
         self.set_mode_idle()
 
-        # set modem config (Bw125Cr45Sf128)
+        # set modem config
         self._spi_write(REG_1D_MODEM_CONFIG1, self._modem_config[0])
         self._spi_write(REG_1E_MODEM_CONFIG2, self._modem_config[1])
         self._spi_write(REG_26_MODEM_CONFIG3, self._modem_config[2])
@@ -170,10 +141,6 @@ class LoRa(object):
 
         self._spi_write(REG_09_PA_CONFIG, PA_SELECT | (self._tx_power - 5))
         
-    def on_recv(self, message):
-        # This should be overridden by the user
-        pass
-
     def sleep(self):
         if self._mode != MODE_SLEEP:
             self._spi_write(REG_01_OP_MODE, MODE_SLEEP)
@@ -191,44 +158,6 @@ class LoRa(object):
             self._spi_write(REG_40_DIO_MAPPING1, 0x00)  # Interrupt on RxDone
             self._mode = MODE_RXCONTINUOUS
             
-    def set_mode_cad(self):
-        if self._mode != MODE_CAD:
-            self._spi_write(REG_01_OP_MODE, MODE_CAD)
-            self._spi_write(REG_40_DIO_MAPPING1, 0x80)  # Interrupt on CadDone
-            self._mode = MODE_CAD
-
-    def _is_channel_active(self):
-        self.set_mode_cad()
-
-        while self._mode == MODE_CAD:
-            yield
-
-        return self._cad
-    
-    def wait_cad(self):
-        if not self.cad_timeout:
-            return True
-
-        start = time.monotonic()
-        for status in self._is_channel_active():
-            if time.monotonic() - start < self.cad_timeout:
-                return False
-
-            if status is None:
-                time.sleep(0.1)
-                continue
-            else:
-                return status
-
-    def wait_packet_sent(self):
-        # wait for `_handle_interrupt` to switch the mode back
-        start = time.monotonic()
-        while time.monotonic() - start < self.wait_packet_sent_timeout:
-            if self._mode != MODE_TX:
-                return True
-
-        return False
-
     def set_mode_idle(self):
         if self._mode != MODE_STDBY:
             self._spi_write(REG_01_OP_MODE, MODE_STDBY)
@@ -263,56 +192,6 @@ class LoRa(object):
         self.set_mode_idle()
         return msg_sent
 
-    def send_to_wait(self, data, header_to, header_flags=0, retries=3):
-        self._last_header_id += 1
-
-        for _ in range(retries + 1):
-            self.send(data, header_to, header_id=self._last_header_id, header_flags=header_flags)
-            self.set_mode_rx()
-
-            if header_to == BROADCAST_ADDRESS:  # Don't wait for acks from a broadcast message
-                return True
-
-            start = time.monotonic()
-            while time.monotonic() - start < self.retry_timeout + (self.retry_timeout ):
-                if self._last_payload:
-                    if self._last_payload.header_to == self._this_address and \
-                            self._last_payload.header_flags & FLAGS_ACK and \
-                            self._last_payload.header_id == self._last_header_id:
-
-                        # We got an ACK
-                        return True
-        return False
-
-    def send_ack(self, header_to, header_id):
-        self.send(b'!', header_to, header_id, FLAGS_ACK)
-        self.wait_packet_sent()
-
-    def _spi_write(self, register, payload):
-        if type(payload) == int:
-            payload = [payload]
-        elif type(payload) == bytes:
-            payload = [p for p in payload]
-        elif type(payload) == str:
-            payload = [ord(s) for s in payload]
-
-        with self._device as device:
-            device.write(bytearray([register | 0x80] + payload))
-
-    def _spi_read(self, register, length=1):
-        buf = bytearray(length)
-
-        with self._device as device:
-            buf[0] = register & 0x7F
-            device.write(buf,end=1)
-            device.readinto(buf, end=length)
-
-        if length==1:
-            return buf[0]
-        else:
-            return buf
-        
-
     def receive(self, timeout=5.0):
         self.set_mode_rx()
         start = time.monotonic()
@@ -326,7 +205,6 @@ class LoRa(object):
                 self._spi_write(REG_0D_FIFO_ADDR_PTR, self._spi_read(REG_10_FIFO_RX_CURRENT_ADDR))
 
                 packet = self._spi_read(REG_00_FIFO, packet_len)
-                #self._spi_write(REG_12_IRQ_FLAGS, 0xff)  # Clear all IRQ flags
 
                 snr = self._spi_read(REG_19_PKT_SNR_VALUE) / 4
                 rssi = self._spi_read(REG_1A_PKT_RSSI_VALUE)
@@ -352,32 +230,8 @@ class LoRa(object):
                     header_flags = packet[3]
                     message = bytes(packet[4:]) if packet_len > 4 else b''
 
-                    #if (self._this_address != header_to) and ((header_to != BROADCAST_ADDRESS) or (self._receive_all is False)):
-                    #    return
-
-                    #if self.crypto and len(message) % 16 == 0:
-                    #    message = self._decrypt(message)
-
-                    #if self._acks and header_to == self._this_address and not header_flags & FLAGS_ACK:
-                    #    self.send_ack(header_from, header_id)
-
-                    #self.set_mode_rx()
-
-                    self.last_msg = message#tuple(
-                     #   "Payload",
-                     #   ['message', 'header_to', 'header_from', 'header_id', 'header_flags', 'rssi', 'snr']
-                    #)(message, header_to, header_from, header_id, header_flags, rssi, snr)
-
-                    #if not header_flags & FLAGS_ACK:
-                    #    self.on_recv(self._last_payload)
+                    self.last_msg = message
                 break
-
-            #elif self._mode == MODE_TX and (irq_flags & TX_DONE):
-            #    self.set_mode_idle()
-
-            #elif self._mode == MODE_CAD and (irq_flags & CAD_DONE):
-            #    self._cad = irq_flags & CAD_DETECTED
-            #    self.set_mode_idle()
 
         self.set_mode_idle()
         self._spi_write(REG_12_IRQ_FLAGS, 0xff)
@@ -386,6 +240,28 @@ class LoRa(object):
 
 
 
+    def _spi_write(self, register, payload):
+        if type(payload) == int:
+            payload = [payload]
+        elif type(payload) == bytes:
+            payload = [p for p in payload]
+        elif type(payload) == str:
+            payload = [ord(s) for s in payload]
 
+        with self._device as device:
+            device.write(bytearray([register | 0x80] + payload))
 
+    def _spi_read(self, register, length=1):
+        buf = bytearray(length)
+
+        with self._device as device:
+            buf[0] = register & 0x7F
+            device.write(buf,end=1)
+            device.readinto(buf, end=length)
+
+        if length==1:
+            return buf[0]
+        else:
+            return buf
+        
 
