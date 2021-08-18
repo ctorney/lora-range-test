@@ -41,7 +41,7 @@ rfm9x = adafruit_rfm9x.RFM9x(spi, CS, RESET, RADIO_FREQ_MHZ)
 # high power radios like the RFM95 can go up to 23 dB:
 rfm9x.tx_power = 23
 #rfm9x.spreading_factor = 9
-#rfm9x.signal_bandwidth = 41700#62500# 31250#250000
+#rfm9x.signal_bandwidth = 31250#250000
 #rfm9x.coding_rate = 8
 
 # Send a packet.  Note you can only send a packet up to 252 bytes in length.

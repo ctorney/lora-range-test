@@ -64,7 +64,7 @@ class ModemConfig():
     Bw125Cr45Sf2048 = (0x72, 0xb4, 0x04) #< Bw = 125 kHz, Cr = 4/5, Sf = 2048chips/symbol, CRC on. Slow+long range
 
 class LoRa(object):
-    def __init__(self,  this_address=0, freq=868.0, tx_power=14,
+    def __init__(self, spi, CS, this_address=0, freq=868.0, tx_power=14,
                  modem_config=ModemConfig.Bw125Cr45Sf128, receive_all=False, acks=False, crypto=None):
         """
         Lora(channel, interrupt, this_address, cs_pin, reset_pin=None, freq=868.0, tx_power=14,
@@ -117,13 +117,13 @@ class LoRa(object):
         #    time.sleep(0.01)
 
         # baud rate to 5MHz
-        self.spi = busio.SPI(board.SCK, MOSI=board.MOSI, MISO=board.MISO)
+        #self.spi = busio.SPI(board.SCK, MOSI=board.MOSI, MISO=board.MISO)
         #self.spi = SPI(self._spi_channel[0], 5000000,
         #               sck=Pin(self._spi_channel[1]), mosi=Pin(self._spi_channel[2]), miso=Pin(self._spi_channel[3]))
 
-        self.cs = digitalio.DigitalInOut(board.RFM9X_CS)
+        #self.cs = digitalio.DigitalInOut(board.RFM9X_CS)
 
-        self._device = spidev.SPIDevice(self.spi, self.cs, baudrate=5000000, polarity=0, phase=0)
+        self._device = spidev.SPIDevice(spi, CS, baudrate=5000000, polarity=0, phase=0)
         # cs gpio pin
         #self.cs = Pin(self._cs_pin, Pin.OUT)
         #self.cs.value(1)
@@ -162,7 +162,7 @@ class LoRa(object):
         if self._tx_power > 23:
             self._tx_power = 23
 
-        if self._tx_power < 20:
+        if self._tx_power > 20:
             self._spi_write(REG_4D_PA_DAC, PA_DAC_ENABLE)
             self._tx_power -= 3
         else:

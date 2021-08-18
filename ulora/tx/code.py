@@ -22,22 +22,23 @@ RADIO_FREQ_MHZ = 868.0 #869.45  # Frequency of the radio in Mhz. Must match your
 #RESET = digitalio.DigitalInOut(board.D6)
 # Or uncomment and instead use these if using a Feather M0 RFM9x board and the appropriate
 # CircuitPython build:
-#CS = digitalio.DigitalInOut(board.RFM9X_CS)
-#RESET = digitalio.DigitalInOut(board.RFM9X_RST)
+CS = digitalio.DigitalInOut(board.RFM9X_CS)
+RESET = digitalio.DigitalInOut(board.RFM9X_RST)
 
 # Define the onboard LED
 LED = digitalio.DigitalInOut(board.D13)
 LED.direction = digitalio.Direction.OUTPUT
 
 # Initialize SPI bus.
-#spi = busio.SPI(board.SCK, MOSI=board.MOSI, MISO=board.MISO)
+spi = busio.SPI(board.SCK, MOSI=board.MOSI, MISO=board.MISO)
 
 #a = 1/0
 # Initialze RFM radio
 #rfm9x = adafruit_rfm9x.RFM9x(spi, CS, RESET, RADIO_FREQ_MHZ)
 
 print('starting Lora')
-rfm9x = ulora.LoRa()#modem_config=ulora.ModemConfig.Bw31_25Cr48Sf512) #RFM95_SPIBUS, RFM95_INT, SERVER_ADDRESS, RFM95_CS, reset_pin=RFM95_RST, freq=RF95_FREQ, tx_power=RF95_POW, acks=True)
+#rfm9x = ulora.LoRa()#modem_config=ulora.ModemConfig.Bw31_25Cr48Sf512) #RFM95_SPIBUS, RFM95_INT, SERVER_ADDRESS, RFM95_CS, reset_pin=RFM95_RST, freq=RF95_FREQ, tx_power=RF95_POW, acks=True)
+rfm9x = ulora.LoRa(spi, CS, modem_config=ulora.ModemConfig.Bw31_25Cr48Sf512,tx_power=23)
 # Note that the radio is configured in LoRa mode so you can't control sync
 # word, encryption, frequency deviation, or other settings!
 
@@ -69,7 +70,7 @@ while True:
     #continue
     # Optionally change the receive timeout from its default of 0.5 seconds:
     LED.value = False
-    packet = rfm9x.receive(timeout=0.5)
+    packet = rfm9x.receive(timeout=2.5)
     # If no packet was received during the timeout then None is returned.
     if packet is not None:
         # Received a packet!
