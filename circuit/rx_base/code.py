@@ -89,7 +89,7 @@ display_bus = displayio.I2CDisplay(i2c, device_address=0x3C)
 display = adafruit_displayio_sh1107.SH1107(display_bus, width=WIDTH, height=HEIGHT)
 
 # Make the display context
-splash = displayio.Group(max_size=10)
+splash = displayio.Group()
 display.show(splash)
 
 color_bitmap = displayio.Bitmap(WIDTH, HEIGHT, 1)
@@ -132,6 +132,7 @@ rfm9x.tx_power = 23
 rfm9x.spreading_factor = 11
 rfm9x.signal_bandwidth = 125000
 rfm9x.coding_rate = 5
+rfm9x.node = 0
 
 # Set to max transmit power!
 #rfm9x.tx_power = MAX_TX_POWER
@@ -140,11 +141,19 @@ rfm9x.coding_rate = 5
 #rfm9x.coding_rate = 5
 
 #print(rfm9x.bw_bins)
+packetnum=0
+while False:
+    sleep(1.0)
+    print("Transmitting...")
+    rfm9x.send(bytes("Hello World #" + str(packetnum) + "\n", "utf-8"))
+
+    packetnum+=1
+    sleep(0.01)
 
 while True:
     print("waiting for message...")
     screen_write("waiting for message...")
-    packet = rfm9x.receive(timeout=20.0)
+    packet = rfm9x.receive(timeout=7.0)
     # If no packet was received during the timeout then None is returned.
     if packet is not None:
         # Received a packet!
@@ -166,7 +175,7 @@ while True:
         rssi = rfm9x.last_rssi
         print("Received signal strength: {0} dB".format(rssi))
         screen_write("Received signal strength: {0} dB".format(rssi))
-        rfm9x.send(bytes("And hello back to you\n", "utf-8"))
+        rfm9x.send(bytes("Message received at base", "utf-8"))
     else:
         print('no message')
         screen_write('no message')

@@ -16,8 +16,8 @@ from time import sleep
 RADIO_FREQ_MHZ = 868.0 #869.45  # Frequency of the radio in Mhz. Must match your
 # module! Can be a value like 915.0, 433.0, etc.
 
-CS = digitalio.DigitalInOut(board.RFM9X_CS)
-RESET = digitalio.DigitalInOut(board.RFM9X_RST)
+#CS = digitalio.DigitalInOut(board.RFM9X_CS)
+#RESET = digitalio.DigitalInOut(board.RFM9X_RST)
 
 # Define the onboard LED
 LED = digitalio.DigitalInOut(board.D13)
@@ -25,9 +25,11 @@ LED.direction = digitalio.Direction.OUTPUT
 
 # Initialize SPI bus.
 spi = busio.SPI(board.SCK, MOSI=board.MOSI, MISO=board.MISO)
+CS = digitalio.DigitalInOut(board.D10)
+RESET = digitalio.DigitalInOut(board.D11)
 
 # Initialze RFM radio
-rfm9x = ulora.LoRa(spi, CS, modem_config=ulora.ModemConfig.Bw31_25Cr48Sf512,tx_power=23) 
+rfm9x = ulora.LoRa(spi, CS, modem_config=ulora.ModemConfig.Bw125Cr45Sf128,tx_power=23) 
 
 while True:
     print("waiting for message...")
@@ -51,9 +53,9 @@ while True:
         # print it.
         rssi = rfm9x.last_rssi
         print("Received signal strength: {0} dB".format(rssi))
-        rfm9x.send(bytes("And hello back to you\n", "utf-8"),1)
+        rfm9x.send(bytes("Message received at base", "utf-8"),1)
     else:
         print('no message')
 
-    sleep(0.01)
+    #sleep(0.01)
     LED.value = False
